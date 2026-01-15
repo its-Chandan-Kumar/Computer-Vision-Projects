@@ -57,30 +57,35 @@ if mode == "Image Upload":
 # --------------------Webcam Mode--------------------
 elif mode == "Webcam":
 
+    import av
+    from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
+
     st.info("Allow camera access to start Face Detection")
 
-    def video_frame_callback(frame):
-        img = frame.to_ndarray(format="bgr24")
-        img = cv2.flip(img,1)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    class FaceDetector(VideoProcessorBase):
+        def recv(self, frame):
+            img = frame.to_ndarray(format="bgr24")
+            img = cv2.flip(img, 1)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        faces = face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(30,30),
-        flags=cv2.CASCADE_SCALE_IMAGE
-        )
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
 
-        for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            for (x, y, w, h) in faces:
+                cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
 
     webrtc_streamer(
         key="face-detection",
-        mode=WebRtcMode.SENDRECV,
-        video_frame_callback=video_frame_callback,
+        video_processor_factory=FaceDetector,
         media_stream_constraints={"video": True, "audio": False},
-        async_processing=True
+        async_processing=True,
+        rtc_configuration={
+            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+        }
     )
